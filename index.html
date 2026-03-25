@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Road Trip with Alex | Turkey Adventure</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --primary: #1a1a2e;
+            --accent: #e94560;
+            --accent2: #0f3460;
+            --gold: #f5a623;
+            --bg: #0f0f1a;
+            --card: #16213e;
+            --text: #eee;
+            --muted: #8892b0;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            overflow-x: hidden;
+        }
+
+        /* Hero */
+        .hero {
+            position: relative;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%);
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 50%, rgba(233,69,96,0.08) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 80%, rgba(15,52,96,0.15) 0%, transparent 50%);
+            animation: drift 20s ease-in-out infinite;
+        }
+
+        @keyframes drift {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            50% { transform: translate(-2%, 2%) rotate(1deg); }
+        }
+
+        .hero h1 {
+            font-size: clamp(2.5rem, 8vw, 5rem);
+            font-weight: 800;
+            letter-spacing: -2px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero h1 span {
+            background: linear-gradient(90deg, var(--accent), var(--gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            font-size: clamp(1rem, 2.5vw, 1.4rem);
+            color: var(--muted);
+            margin-top: 1rem;
+            position: relative;
+            z-index: 1;
+            font-weight: 300;
+        }
+
+        .hero .route-summary {
+            display: flex;
+            gap: 2rem;
+            margin-top: 2.5rem;
+            position: relative;
+            z-index: 1;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .route-summary .stat {
+            text-align: center;
+        }
+
+        .stat .num {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--gold);
+        }
+
+        .stat .label {
+            font-size: 0.8rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .scroll-hint {
+            position: absolute;
+            bottom: 2rem;
+            z-index: 1;
+            animation: bounce 2s infinite;
+            color: var(--muted);
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(8px); }
+        }
+
+        /* Map */
+        #map-section {
+            position: relative;
+        }
+
+        #map {
+            width: 100%;
+            height: 80vh;
+        }
+
+        .leaflet-popup-content-wrapper {
+            background: var(--card) !important;
+            color: var(--text) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4) !important;
+            border: 1px solid rgba(233,69,96,0.2) !important;
+        }
+
+        .leaflet-popup-tip {
+            background: var(--card) !important;
+        }
+
+        .leaflet-popup-content {
+            margin: 12px 16px !important;
+            font-family: 'Outfit', sans-serif !important;
+        }
+
+        .popup-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .popup-phase {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--gold);
+            margin-bottom: 6px;
+        }
+
+        .popup-desc {
+            font-size: 0.85rem;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .popup-nav {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 6px 14px;
+            background: var(--accent);
+            color: white;
+            border-radius: 20px;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .popup-nav:hover {
+            background: #ff5a75;
+            transform: scale(1.05);
+        }
+
+        /* Timeline / Stops */
+        .stops-section {
+            padding: 4rem 1.5rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .stops-section h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 3rem;
+        }
+
+        .phase-group {
+            margin-bottom: 3rem;
+        }
+
+        .phase-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .phase-num {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--gold));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .phase-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .phase-days {
+            color: var(--muted);
+            font-size: 0.85rem;
+            margin-left: auto;
+            white-space: nowrap;
+        }
+
+        .stop-card {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(255,255,255,0.05);
+            transition: all 0.3s;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stop-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: linear-gradient(180deg, var(--accent), var(--gold));
+            border-radius: 4px 0 0 4px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .stop-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(233,69,96,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        .stop-card:hover::before {
+            opacity: 1;
+        }
+
+        .stop-card .emoji {
+            font-size: 1.6rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .stop-card h3 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 0.3rem;
+        }
+
+        .stop-card .desc {
+            color: var(--muted);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .stop-card .tip {
+            margin-top: 0.7rem;
+            padding: 0.5rem 0.8rem;
+            background: rgba(245,166,35,0.1);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: var(--gold);
+            border-left: 3px solid var(--gold);
+        }
+
+        .stop-card .camping-list {
+            margin-top: 0.8rem;
+            padding: 0.7rem 0.9rem;
+            background: rgba(16,185,129,0.08);
+            border-radius: 10px;
+            border-left: 3px solid #10b981;
+        }
+
+        .stop-card .camping-list h4 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #10b981;
+            margin-bottom: 0.5rem;
+        }
+
+        .stop-card .camping-item {
+            font-size: 0.82rem;
+            color: var(--muted);
+            line-height: 1.5;
+            margin-bottom: 0.4rem;
+        }
+
+        .stop-card .camping-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .stop-card .camping-item strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .stop-card h3 a:hover {
+            color: var(--gold) !important;
+            border-bottom-color: var(--gold) !important;
+        }
+
+        .stop-card .camping-item a,
+        .stop-card .suggestion-item a {
+            color: inherit;
+            text-decoration: none;
+            border-bottom: 1px dashed rgba(255,255,255,0.3);
+            transition: all 0.2s;
+        }
+
+        .stop-card .camping-item a:hover,
+        .stop-card .suggestion-item a:hover {
+            color: var(--gold);
+            border-bottom-color: var(--gold);
+        }
+
+        .stop-card .suggestions-list {
+            margin-top: 0.8rem;
+            padding: 0.7rem 0.9rem;
+            background: rgba(139,92,246,0.08);
+            border-radius: 10px;
+            border-left: 3px solid #a78bfa;
+        }
+
+        .stop-card .suggestions-list h4 {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: #a78bfa;
+            margin-bottom: 0.5rem;
+        }
+
+        .stop-card .suggestion-item {
+            font-size: 0.82rem;
+            color: var(--muted);
+            line-height: 1.5;
+            margin-bottom: 0.4rem;
+        }
+
+        .stop-card .suggestion-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .stop-card .suggestion-item strong {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        .stop-card .nav-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 0.8rem;
+            padding: 6px 14px;
+            background: rgba(233,69,96,0.15);
+            color: var(--accent);
+            border-radius: 20px;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .stop-card .nav-btn:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* Google Maps Full Route Button */
+        .full-route-section {
+            text-align: center;
+            padding: 3rem 1.5rem;
+            background: linear-gradient(180deg, transparent, rgba(233,69,96,0.05));
+        }
+
+        .full-route-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 1rem 2.5rem;
+            background: linear-gradient(135deg, var(--accent), #ff5a75);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            transition: all 0.3s;
+            box-shadow: 0 4px 24px rgba(233,69,96,0.3);
+        }
+
+        .full-route-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(233,69,96,0.5);
+        }
+
+        /* Tips */
+        .tips-section {
+            padding: 3rem 1.5rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .tips-section h2 {
+            text-align: center;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+        }
+
+        .tips-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1rem;
+        }
+
+        .tip-card {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 1.5rem;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .tip-card h3 {
+            font-size: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .tip-card p {
+            color: var(--muted);
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 3rem 1rem;
+            color: var(--muted);
+            font-size: 0.85rem;
+        }
+
+        footer .motto {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Mobile */
+        @media (max-width: 600px) {
+            .phase-header {
+                flex-wrap: wrap;
+            }
+            .phase-days {
+                margin-left: 0;
+                width: 100%;
+                padding-left: 56px;
+            }
+            #map { height: 60vh; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Hero -->
+<section class="hero">
+    <h1>Road Trip <span>with Alex</span></h1>
+    <p>April 23 – May 5 | Car camping adventure through Turkey's hidden gems</p>
+    <div class="route-summary">
+        <div class="stat">
+            <div class="num">11</div>
+            <div class="label">Destinations</div>
+        </div>
+        <div class="stat">
+            <div class="num">~1400</div>
+            <div class="label">Kilometers</div>
+        </div>
+        <div class="stat">
+            <div class="num">13</div>
+            <div class="label">Days</div>
+        </div>
+        <div class="stat">
+            <div class="num">6</div>
+            <div class="label">Phases</div>
+        </div>
+    </div>
+    <div class="scroll-hint" onclick="document.getElementById('map-section').scrollIntoView({behavior:'smooth'})">
+        ↓ Scroll to explore the route
+    </div>
+</section>
+
+<!-- Map -->
+<section id="map-section">
+    <div id="map"></div>
+</section>
+
+<!-- Full Route CTA -->
+<section class="full-route-section">
+    <a class="full-route-btn" id="gmaps-link" href="#" target="_blank">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+        Open Full Route in Google Maps
+    </a>
+    <p style="margin-top:1rem;color:var(--muted);font-size:0.85rem;">Opens in Google Maps app on mobile, browser on desktop</p>
+</section>
+
+<!-- Stops -->
+<section class="stops-section">
+    <h2>The Journey</h2>
+    <div id="stops-container"></div>
+</section>
+
+<!-- Tips -->
+<section class="tips-section">
+    <h2>Bonus Tips</h2>
+    <div class="tips-grid">
+        <div class="tip-card">
+            <h3>🚗 Wild Camping</h3>
+            <p>Generally easy and tolerated in mountains, near lakes, and remote coastal areas. Avoid private property and restricted national park zones.</p>
+        </div>
+        <div class="tip-card">
+            <h3>⛽ Gas Stations = Safe Spots</h3>
+            <p>Turkish gas stations often have toilets, showers, WiFi, and mini markets. Perfect overnight stops when needed.</p>
+        </div>
+        <div class="tip-card">
+            <h3>🧠 The Golden Rule</h3>
+            <p>"That looks cool → let's turn → camp → continue." Don't overplan. Turkey rewards spontaneity.</p>
+        </div>
+    </div>
+</section>
+
+<!-- Footer -->
+<footer>
+    <div class="motto">"The road is the destination."</div>
+    <p>Made with ❤️ for an epic Turkey adventure</p>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const destinations = [
+    // Phase 1: West of Antalya
+    {
+        phase: 1, phaseTitle: "West of Antalya", phaseDays: "2-3 days",
+        name: "Olympos & Çıralı", emoji: "🏝️",
+        lat: 36.3955, lng: 30.4735, place: "Olympos, Antalya",
+        desc: "Backpacker vibe, jungle ruins, beach. Great for wild camping (unofficially). Chimaira (Yanartaş) is right here — natural eternal flames coming out of the rocks, best visited at night.",
+        tip: "Visit Chimaira at night — walk up the hill for a magical fire show under the stars!",
+        onMap: true, onRoute: true,
+        camping: [
+            { name: "Tavuskuşu Camping & Caravan", detail: "120m from Çıralı beach, showers/WC/electricity/kitchen/BBQ/parking, caravan area available" },
+            { name: "Olimpos Doğa Camping", detail: "Pine forest setting, showers/wifi/kitchen/caravan park, ~350₺/tent" },
+            { name: "Olimpos Turkuaz Camping", detail: "1.5km to ancient beach, 4 acres of shaded area, bungalow + tent + caravan" }
+        ],
+        suggestions: [
+            { name: "Phaselis", detail: "Ancient Rhodian port city with 3 harbors — swim in turquoise bays among ruins. 20km south of Kemer, right on D400" },
+            { name: "Göynük Canyon", detail: "14km gorge with 100m cliffs, crystal pools & waterfalls. Canyoning possible. 6km off D400 near Kemer" }
+        ]
+    },
+    {
+        phase: 1, name: "Kaş", emoji: "🌊",
+        lat: 36.1987, lng: 29.6387, place: "Kaş, Antalya",
+        desc: "Cliffs, hidden bays, perfect car camping spots. Just stop wherever it looks good.",
+        tip: "The coastal drive from Olympos to Kaş is stunning — take your time!",
+        onMap: true, onRoute: true,
+        camping: [
+            { name: "Kaş Camping", detail: "Since 1981, 7 acres olive grove, sea views, showers/WC/electricity/wifi/bar, ~45-75₺" },
+            { name: "Kaş Evren Camping", detail: "10min walk to center, electricity/wifi/showers/kitchen, budget-friendly" },
+            { name: "Kaş Harnup Camping", detail: "15min to Big Pebble Beach, tent & caravan area" }
+        ],
+        suggestions: [
+            { name: "Kekova Sunken City", detail: "Glass-bottom boat tour over a 2nd-century submerged city. Departs from Üçağız, 30min from Kaş" },
+            { name: "Myra & St. Nicholas Church", detail: "Rock-cut Lycian tombs carved into cliffs + Roman amphitheater in Demre. 45min from Kaş" },
+            { name: "Kaputaş Beach", detail: "Iconic turquoise cove between cliffs — one of Turkey's most photographed beaches. On D400 between Kaş & Kalkan" }
+        ]
+    },
+    {
+        phase: 1, name: "Kalkan & Patara", emoji: "🏖️",
+        lat: 36.2635, lng: 29.4153, place: "Kalkan, Antalya",
+        desc: "Kalkan: charming coastal town with hidden bays and cliffside sunsets. Patara: 18km of pristine white sand — one of the longest beaches in the Mediterranean, plus ancient Lycian ruins (Roman parliament, amphitheater, lighthouse) and a protected Caretta Caretta sea turtle nesting site.",
+        tip: "Patara beach closes at sunset to protect the turtles — combine the ancient city visit with the beach, they share the same entrance!",
+        onMap: true, onRoute: false,
+        camping: [
+            { name: "Kalkan Camping", detail: "On Kaş-Kalkan road, 4km to Kalkan, sea views, forest setting, showers/WC/electricity/restaurant" },
+            { name: "Medusa Camping (Patara)", detail: "Walking distance to Patara Beach, organic breakfast, traditional evening meals, since 1989" },
+            { name: "Ufakdere Camping", detail: "Between Kaş & Kalkan, organic food, fruit trees, Mediterranean views" }
+        ]
+    },
+
+    // Phase 2: Ölüdeniz & Kabak
+    {
+        phase: 2, phaseTitle: "Ölüdeniz & Kabak", phaseDays: "1-2 days",
+        name: "Ölüdeniz", emoji: "🪂",
+        lat: 36.5498, lng: 29.1156, place: "Ölüdeniz, Fethiye, Muğla",
+        desc: "Turkey's most famous lagoon beach with turquoise waters. Paragliding capital — fly off Babadağ mountain for an unforgettable view.",
+        tip: "Paragliding here is a must — one of the best spots in the world!",
+        onMap: true, onRoute: true,
+        camping: [
+            { name: "Ölüdeniz Nature Camp", detail: "12 acres near lagoon, solar power/BBQ/organic breakfast, tent + bungalow + tree house" },
+            { name: "Yerdeniz Camp", detail: "300m to beach, pine forest, showers/WC/electricity, bungalow option" }
+        ],
+        suggestions: [
+            { name: "Butterfly Valley", detail: "350m canyon with 80+ butterfly species — only accessible by boat (15min from Ölüdeniz) or steep hike" },
+            { name: "Kayaköy Ghost Village", detail: "500-house abandoned Greek town from 1923. National Geographic Top 10. Haunting open-air museum, 7km from Fethiye" },
+            { name: "Fethiye Rock Tombs (Amyntas)", detail: "4th-century BC Lycian tomb with Ionic facade overlooking Fethiye Bay. 200 steps up, panoramic views" },
+            { name: "Tlos Ancient City", detail: "Major Lycian ruins: theater, stadium, rock tombs, acropolis viewpoint. Dramatic hilltop, 13km from Fethiye" }
+        ]
+    },
+    {
+        phase: 2, name: "Kabak Bay", emoji: "🌴",
+        lat: 36.4833, lng: 29.0917, place: "Kabak Koyu, Fethiye, Muğla",
+        desc: "Hidden bay surrounded by cliffs and pine forests. Bohemian vibe, tree houses, yoga retreats. The anti-tourist beach.",
+        tip: "Walk down the steep path — it's worth every step. Amazing wild camping spots.",
+        onMap: true, onRoute: false,
+        camping: [
+            { name: "Kabak Famous Camping", detail: "5min walk to beach, tent & caravan area, car access available" },
+            { name: "Mandala Camping", detail: "Bay views, pool, internet, private parking, forest setting" },
+            { name: "Chakra Beach Kabak", detail: "100m to bay, tree houses, yoga areas, meditation" }
+        ]
+    },
+
+    // Phase 3: Inland Adventure
+    {
+        phase: 3, phaseTitle: "Inland Adventure", phaseDays: "1-2 days",
+        name: "Saklıkent Canyon", emoji: "🌿",
+        lat: 36.4486, lng: 29.4217, place: "Saklıkent Kanyonu, Fethiye, Muğla",
+        desc: "Massive canyon — walk through ice-cold water. An unforgettable natural wonder.",
+        tip: "Go early morning or late afternoon for fewer people.",
+        onMap: true, onRoute: true,
+        camping: [
+            { name: "Gorge Club Saklıkent", detail: "2min to canyon, tent/tree house/bungalow, wifi/parking/electricity/showers, zip-line & mud bath" },
+            { name: "Saklımavi Kent Camp", detail: "~200m to canyon, restaurant/parking/showers/hot water, mud bath" },
+            { name: "Kumluova Beach", detail: "Free, natural campsite, car & caravan friendly" }
+        ]
+    },
+    {
+        phase: 3, name: "Gömbe Plateau", emoji: "🏔️",
+        lat: 36.5856, lng: 29.4856, place: "Gömbe, Kaş, Antalya",
+        desc: "High-altitude plateau, super quiet. Cooler temperatures, great for camping. Hardly any tourists.",
+        tip: "Feels like a real hidden gem — one of Turkey's best kept secrets.",
+        onMap: true, onRoute: true,
+        camping: [
+            { name: "Yeşilgöl (Green Lake)", detail: "1950m altitude, crater lake, free wild camping, fully primitive — bring everything you need" },
+            { name: "Akdağ Nature Park", detail: "Hiking trails, natural cold springs, some areas free camping" }
+        ]
+    },
+
+    // Phase 4: On the way to Cappadocia
+    {
+        phase: 4, phaseTitle: "Road to Cappadocia", phaseDays: "2-3 days",
+        name: "Eğirdir", emoji: "🌊",
+        lat: 37.8888, lng: 30.8556, place: "Eğirdir, Isparta",
+        desc: "Beautiful lake with mountain views. Amazing lakeside camping.",
+        tip: "Don't rush — take your time on this leg of the journey.",
+        onMap: true, onRoute: true,
+        camping: [
+            { name: "Altınkum Beach Camping", detail: "Lakeside, showers/WC/electricity/water hookup/parking, nearby market & restaurant" },
+            { name: "Bedre Cove Camping", detail: "35km from Isparta, showers/WC/BBQ/cafe/market, municipality-run" },
+            { name: "Kovada Lake National Park", detail: "Near Eğirdir, WC/drinking water/hiking & bike trails, paid entry" }
+        ],
+        suggestions: [
+            { name: "Salda Lake", detail: "'Turkey's Maldives' — crater lake with white sand, Mars-like geology. Stunning clear water. ~160km from Eğirdir" },
+            { name: "Konya & Mevlana Museum", detail: "Rumi's mausoleum, birthplace of whirling dervishes. Essential cultural stop on the way to Cappadocia" },
+            { name: "Sultanhanı Caravanserai", detail: "Turkey's largest Seljuk-era inn (1229), 4900m² Silk Road masterpiece. On Konya-Aksaray highway" }
+        ]
+    },
+    {
+        phase: 4, name: "Sagalassos", emoji: "🏛️",
+        lat: 37.6780, lng: 30.5183, place: "Sagalassos, Burdur",
+        desc: "Ancient ruins up in the mountains. Way less crowded than famous sites.",
+        tip: "One of the most underrated places in Turkey!",
+        onMap: true, onRoute: true,
+        camping: [
+            { name: "Lake Salda Campsite", detail: "~40km from Sagalassos, 'Turkey's Maldives', restaurant/bungalow/showers/WC" },
+            { name: "Haşmetin Bahçesi Camping", detail: "Near Lake Salda, electricity/showers/WC/kitchen, tent & caravan" }
+        ]
+    },
+
+    // Phase 5: Cappadocia
+    {
+        phase: 5, phaseTitle: "Cappadocia", phaseDays: "2-3 days",
+        name: "Göreme", emoji: "🎈",
+        lat: 38.6431, lng: 34.8289, place: "Göreme, Nevşehir",
+        desc: "Base camp for Cappadocia. Fairy chimneys, cave hotels, hot air balloons at sunrise.",
+        tip: "The real magic is in the surrounding valleys.",
+        onMap: true, onRoute: true,
+        camping: [
+            { name: "Panorama Camping", detail: "5min to Göreme, tent & caravan, electricity/showers/restaurant/bar/wifi/pool/parking, €10-30/night" },
+            { name: "Kaya Camping", detail: "On national park land, wifi/pool/laundry/showers/kitchen, tent rental available" },
+            { name: "Göreme Camping (Aquapark)", detail: "7000m², 70 caravan + 50 tent spots, restaurant/pool/aquapark/wifi, €2-10/night" }
+        ],
+        suggestions: [
+            { name: "Rose Valley (Güllüdere)", detail: "Pink-hued rock formations, best sunset spot in Cappadocia. Free wild camping allowed" },
+            { name: "Love Valley (Aşk Vadisi)", detail: "Iconic tall rock pillars, wild camping with hot air balloon views at sunrise" },
+            { name: "Pigeon Valley (Güvercinlik)", detail: "Pigeon houses carved into fairy chimneys, amazing panoramic views toward Uçhisar" },
+            { name: "Ihlara Valley", detail: "Green canyon with a river — totally different vibe. Riverside wild camping at Belisırma Village" },
+            { name: "Uçhisar Castle", detail: "Highest point in Cappadocia — 360° panoramic views from the carved rock summit. 5km from Göreme" },
+            { name: "Paşabağ (Monks Valley)", detail: "Iconic fairy chimneys with monastic cave carvings. Between Göreme & Avanos, perfect photo stop" },
+            { name: "Derinkuyu Underground City", detail: "8 levels deep — entire underground city with mind-blowing ancient engineering. 40km from Göreme" },
+            { name: "Kaymaklı Underground City", detail: "More walkable alternative to Derinkuyu with wider tunnels, wine tanks & kitchens. 15km from Nevşehir" },
+            { name: "Tuz Gölü (Salt Lake)", detail: "Turkey's second-largest lake — vast white salt flats, otherworldly pink-tinged water. 1.5hrs from Göreme, great on return route" }
+        ]
+    },
+
+    // Phase 6: Returning to Antalya
+    {
+        phase: 6, phaseTitle: "Returning to Antalya", phaseDays: "1-2 days",
+        name: "Antalya", emoji: "🏙️",
+        lat: 36.8969, lng: 30.7133, place: "Antalya, Turkey",
+        desc: "Back where it all began. Antalya's old town (Kaleiçi) is a maze of Ottoman-era houses, Roman walls, and Hadrian's Gate. Stroll the marina, visit the impressive Antalya Museum, and enjoy rooftop views over the turquoise coastline. The Düden Waterfalls — both Upper and Lower — are within city limits and worth a visit.",
+        tip: "Kaleiçi at sunset is pure magic. Grab a tea at the old harbor and watch the boats come in.",
+        onMap: false, onRoute: false,
+        camping: null,
+        suggestions: [
+            { name: "Aspendos Theater", detail: "One of the world's best-preserved Roman theaters, still in use today. 45km east of Antalya — absolute must-see" },
+            { name: "Beyşehir Lake", detail: "Turkey's largest freshwater lake + 13th-century Eşrefoğlu Mosque with stunning wooden columns. On return route from Konya" },
+            { name: "Side Ancient City", detail: "Greco-Roman port town with seaside Temple of Apollo, ancient theater & agora. 75km from Antalya" },
+            { name: "Düden Waterfalls", detail: "Two stunning waterfalls inside city limits — Lower Düden drops 40m straight into the sea from cliffs" }
+        ]
+    }
+];
+
+// --- MAP ---
+const map = L.map('map', {
+    scrollWheelZoom: true,
+    zoomControl: true
+}).setView([37.5, 32.0], 7);
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19
+}).addTo(map);
+
+// Phase colors
+const phaseColors = {
+    0: '#f97316',
+    1: '#e94560',
+    2: '#3b82f6',
+    3: '#0f3460',
+    4: '#f5a623',
+    5: '#8b5cf6',
+    6: '#10b981'
+};
+
+// Custom markers
+function createIcon(phase) {
+    return L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="
+            width:28px;height:28px;border-radius:50%;
+            background:${phaseColors[phase]};
+            border:3px solid white;
+            box-shadow:0 2px 8px rgba(0,0,0,0.4);
+            display:flex;align-items:center;justify-content:center;
+            font-size:11px;font-weight:700;color:white;
+        ">${phase}</div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+        popupAnchor: [0, -16]
+    });
+}
+
+// Antalya start/finish point
+const antalya = { lat: 36.8969, lng: 30.7133, name: "Antalya" };
+
+// Start marker
+const startIcon = L.divIcon({
+    className: 'custom-marker',
+    html: `<div style="
+        width:32px;height:32px;border-radius:50%;
+        background:${phaseColors[0]};
+        border:3px solid white;
+        box-shadow:0 2px 12px rgba(249,115,22,0.5);
+        display:flex;align-items:center;justify-content:center;
+        font-size:14px;font-weight:800;color:white;
+    ">A</div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -18]
+});
+
+L.marker([antalya.lat, antalya.lng], { icon: startIcon })
+    .addTo(map)
+    .bindPopup(`
+        <div class="popup-phase">START & FINISH</div>
+        <div class="popup-title">📍 Antalya</div>
+        <div class="popup-desc">Where the adventure begins and ends.</div>
+    `, { maxWidth: 280 });
+
+// Add markers (only for onMap destinations)
+const mapDests = destinations.filter(d => d.onMap);
+mapDests.forEach(d => {
+    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(d.place)}&travelmode=driving`;
+    const popup = `
+        <div class="popup-phase">${d.phaseTitle || ''} · Phase ${d.phase}</div>
+        <div class="popup-title">${d.emoji} ${d.name}</div>
+        <div class="popup-desc">${d.desc}</div>
+        <a class="popup-nav" href="${gmapsUrl}" target="_blank">📍 Navigate Here</a>
+    `;
+    L.marker([d.lat, d.lng], { icon: createIcon(d.phase) })
+        .addTo(map)
+        .bindPopup(popup, { maxWidth: 280 });
+});
+
+// Draw route line: Antalya → stops → Antalya
+const routeCoords = [
+    [antalya.lat, antalya.lng],
+    ...mapDests.map(d => [d.lat, d.lng]),
+    [antalya.lat, antalya.lng]
+];
+L.polyline(routeCoords, {
+    color: '#e94560',
+    weight: 3,
+    opacity: 0.6,
+    dashArray: '8, 12',
+    smoothFactor: 1.5
+}).addTo(map);
+
+// Fit bounds
+map.fitBounds(routeCoords, { padding: [40, 40] });
+
+// --- GOOGLE MAPS FULL ROUTE LINK ---
+// Origin: Antalya, Destination: last onRoute stop, Waypoints: all onRoute stops
+function buildGoogleMapsUrl() {
+    const origin = encodeURIComponent('Antalya Merkez, Antalya');
+    const dest = encodeURIComponent('Antalya Merkez, Antalya');
+    const routeStops = destinations.filter(d => d.onRoute);
+    const waypoints = routeStops.map(d => encodeURIComponent(d.place)).join('|');
+    return `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&waypoints=${waypoints}&travelmode=driving`;
+}
+
+document.getElementById('gmaps-link').href = buildGoogleMapsUrl();
+
+// --- STOPS CARDS ---
+const container = document.getElementById('stops-container');
+let currentPhase = 0;
+
+destinations.forEach((d, i) => {
+    if (d.phase !== currentPhase) {
+        currentPhase = d.phase;
+        const group = document.createElement('div');
+        group.className = 'phase-group';
+        group.innerHTML = `
+            <div class="phase-header">
+                <div class="phase-num" style="background:linear-gradient(135deg, ${phaseColors[d.phase]}, ${phaseColors[d.phase]}dd);">${d.phase}</div>
+                <div class="phase-title">${d.phaseTitle}</div>
+                <div class="phase-days">${d.phaseDays}</div>
+            </div>
+        `;
+        group.id = `phase-${d.phase}`;
+        container.appendChild(group);
+    }
+
+    const gmapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(d.place)}&travelmode=driving`;
+    const card = document.createElement('div');
+    card.className = 'stop-card';
+    const gmapsSearch = (name) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(name + ', Turkey')}`;
+
+    const campingHtml = d.camping && d.camping.length ? `
+        <div class="camping-list">
+            <h4>⛺ Campsites Nearby</h4>
+            ${d.camping.map(c => `<div class="camping-item"><a href="${gmapsSearch(c.name)}" target="_blank"><strong>📍 ${c.name}</strong></a> — ${c.detail}</div>`).join('')}
+        </div>` : '';
+
+    const suggestionsHtml = d.suggestions && d.suggestions.length ? `
+        <div class="suggestions-list">
+            <h4>✨ Don't Miss Nearby</h4>
+            ${d.suggestions.map(s => `<div class="suggestion-item"><a href="${gmapsSearch(s.name)}" target="_blank"><strong>📍 ${s.name}</strong></a> — ${s.detail}</div>`).join('')}
+        </div>` : '';
+
+    card.innerHTML = `
+        <div class="emoji">${d.emoji}</div>
+        <h3><a href="${gmapsSearch(d.place || d.name)}" target="_blank" style="color:inherit;text-decoration:none;border-bottom:1px dashed rgba(255,255,255,0.3);transition:all 0.2s;">${d.name}</a></h3>
+        <div class="desc">${d.desc}</div>
+        ${d.tip ? `<div class="tip">💡 ${d.tip}</div>` : ''}
+        ${campingHtml}
+        ${suggestionsHtml}
+        ${d.onMap ? `<a class="nav-btn" href="${gmapsUrl}" target="_blank">📍 Navigate</a>` : ''}
+    `;
+
+    if (d.onMap) {
+        card.addEventListener('click', (e) => {
+            if (e.target.tagName === 'A') return;
+            map.setView([d.lat, d.lng], 12, { animate: true });
+            document.getElementById('map-section').scrollIntoView({ behavior: 'smooth' });
+        });
+    }
+
+    document.getElementById(`phase-${d.phase}`).appendChild(card);
+});
+</script>
+</body>
+</html>
