@@ -912,13 +912,6 @@ destinations.forEach((d, i) => {
         ${d.onMap ? `<a class="nav-btn" href="${gmapsUrl}" target="_blank">📍 Navigate</a>` : ''}
     `;
 
-    if (d.onMap) {
-        card.addEventListener('click', (e) => {
-            if (e.target.tagName === 'A') return;
-            map.setView([d.lat, d.lng], 12, { animate: true });
-            document.getElementById('map-section').scrollIntoView({ behavior: 'smooth' });
-        });
-    }
 
     document.getElementById(`phase-${d.phase}`).appendChild(card);
 });
